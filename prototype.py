@@ -23,9 +23,17 @@ prototype - A tiny python library that simulates prototype inheritence in javasc
 >>> bird.instrument
 'alto sax'
 
-# unset attributes just return None
+# unset attributes raise an AttributeError exception
 >>> print bird.age
-None
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "prototype.py", line 148, in __getattribute__
+    val = _proto_getattr(this, name)
+  File "prototype.py", line 127, in _proto_getattr
+    return _getattr(obj, name)
+  File "prototype.py", line 118, in _getattr
+    return object.__getattribute__(obj, name)
+AttributeError: 'Object' object has no attribute 'age'
 
 # add methods to the instance
 >>> def sing(this):
@@ -75,7 +83,22 @@ Hello, my name is Thelonious Monk
 >>> del bird.name
 Deleting Dizzy Gillespie.
 >>> bird.name
-'None None'
+Traceback (most recent call last):
+  File "/usr/lib64/python2.6/doctest.py", line 1241, in __run
+    compileflags, 1) in test.globs
+  File "<doctest prototype[28]>", line 1, in <module>
+    bird.name
+  File "/backup/Projects/python-prototype/prototype.py", line 159, in __getattribute__
+    return get()
+  File "<doctest prototype[12]>", line 2, in getName
+    return '%s %s' % (this.firstName, this.lastName)
+  File "/backup/Projects/python-prototype/prototype.py", line 156, in __getattribute__
+    val = _proto_getattr(this, name)
+  File "/backup/Projects/python-prototype/prototype.py", line 135, in _proto_getattr
+    return _getattr(obj, name)
+  File "/backup/Projects/python-prototype/prototype.py", line 126, in _getattr
+    return object.__getattribute__(obj, name)
+AttributeError: 'Object' object has no attribute 'firstName'
 
 # using prototype inheritence
 >>> father = Person('Tom', 'Bard')
@@ -121,11 +144,14 @@ def _setattr(obj, name, val):
     object.__setattr__(obj, name, val)
 
 def _proto_getattr(obj, name):
-    val = _getattr(obj, name)
-    while val is None and obj is not None:
-        obj = _getattr(obj, '__proto__')
-        val = _getattr(obj, name)
-    return val
+    # Jonathan Gardner: changing _getattr changes other things too.
+    while True:
+        try:
+            return _getattr(obj, name)
+        except AttributeError:
+            obj = _getattr(obj, '__proto__')
+            if obj is None:
+                raise
 
 class ObjectMetaClass(type):
     def __repr__(cls):
@@ -134,6 +160,8 @@ class ObjectMetaClass(type):
 class Object(object):
     __metaclass__ = ObjectMetaClass
     prototype = None
+    __proto__ = None
+    constructor = None
     
     def __init__(this):
         this.__proto__ = this.prototype
@@ -152,18 +180,28 @@ class Object(object):
             
     def __setattr__(this, name, val):
         if not isinstance(val, property):
-            _val = _proto_getattr(this, name)
-            if isinstance(_val, property) and _val.fset:
-                _val.fset(this, val)
-                return
+            try:
+                _val = _proto_getattr(this, name)
+            except AttributeError:
+                pass
+            else:
+                if isinstance(_val, property) and _val.fset:
+                    _val.fset(this, val)
+                    return
+
         _setattr(this, name, val)
 
     def __delattr__(this, name):
-        val = _proto_getattr(this, name)
-        if isinstance(val, property) and val.fdel:
-            val.fdel(this)
+        try:
+            val = _proto_getattr(this, name)
+        except AttributeError:
+            pass
         else:
-            object.__delattr__(this, name)
+            if isinstance(val, property) and val.fdel:
+                val.fdel(this)
+                return
+
+        object.__delattr__(this, name)
 
 Object.prototype = Object()
 
