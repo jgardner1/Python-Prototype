@@ -30,7 +30,7 @@ attribute is mising, instead of returning None.
       author_email='jgardner@jonathangardner.net',
       url='http://tech.jonathangardner.net/wiki/Python-Prototype',
       license='Public Domain',
-      py_modules - ['prototype']
+      py_modules=['prototype'],
       include_package_data=True,
       zip_safe=True,
       )
